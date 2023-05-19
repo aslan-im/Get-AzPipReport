@@ -1,9 +1,11 @@
+#Requires -module Az.Accounts, Az.Network, ImportExcel
 
+Import-module ImportExcel, Az.Accounts, Az.Network
 $Subs = get-azSubscription
 $AzSubscriptionsCount = $Subs | Measure-Object | Select-Object -ExpandProperty Count
 $SubsCounter = 1
 
-$ReportPath = $PSScriptRoot + "\AzPipReport.csv"
+$ReportPath = $PSScriptRoot + "\AzPipReport.xlsx"
 
 $AllPipsResult = @()
 $PerSubReport = @()
@@ -56,55 +58,53 @@ foreach ($Sub in $Subs){
         $AttachedToType = ''
         $AttachedToName = ''
         if($AttachedTo){
-            if($($AttachedTo.Split('/')) -contains 'networkInterfaces'){
-                $NIC = $AttachedTo.Split('/')[8]
-                $NICObject = Get-AzNetworkInterface -Name $NIC
-                if($NICObject.VirtualMachine){
-                    $VMName = $NICObject.VirtualMachine.Id.Split('/')[8]
-                    $AttachedToType = 'VM'
-                    $AttachedToName = $VMName
+            $AttachedToString = $AttachedTo.Split('/')[7]
+            switch ($AttachedToString) {
+                "networkInterfaces" { 
+                    $NICObject = Get-AzNetworkInterface -Name $($AttachedTo.Split('/')[8])
+                    if($NICObject.VirtualMachine){
+                        $VMName = $NICObject.VirtualMachine.Id.Split('/')[8]
+                        $AttachedToType = 'VM'
+                        $AttachedToName = $VMName
+                    }
+                    elseif ($NicObject.NetworkSecurityGroup) {
+                        $NSG = $NICObject.NetworkSecurityGroup.Id.Split('/')[8]
+                        $AttachedToType = 'NSG'
+                        $AttachedToName = $NSG
+                    }
                 }
-                elseif ($NicObject.NetworkSecurityGroup) {
-                    $NSG = $NICObject.NetworkSecurityGroup.Id.Split('/')[8]
-                    $AttachedToType = 'NSG'
-                    $AttachedToName = $NSG
+                "bastionHosts" {
+                    $AttachedToType = 'Bastion'
+                    $AttachedToName = $AttachedTo.Split('/')[8]
                 }
-                
-            }
-            elseif ($($AttachedTo.Split('/')) -contains 'bastionHosts'){
-                $Bastion = $AttachedTo.Split('/')[8]
-                $AttachedToType = 'Bastion'
-                $AttachedToName = $Bastion
-            }
-            elseif ($($AttachedTo.Split('/')) -contains 'applicationGateways'){
-                $AG = $AttachedTo.Split('/')[8]
-                $AttachedToType = 'AppGateway'
-                $AttachedToName = $AG
-            }
-            elseif ($($AttachedTo.Split('/')) -contains 'loadBalancers'){
-                $LB = $AttachedTo.Split('/')[8]
-                $AttachedToType = 'LoadBalancer'
-                $AttachedToName = $LB
-            }
-            elseif ($($AttachedTo.Split('/')) -contains 'virtualNetworkGateways'){
-                $VNG = $AttachedTo.Split('/')[8]
-                $AttachedToType = 'VNG'
-                $AttachedToName = $VNG
-            }
-            elseif ($($AttachedTo.Split('/')) -contains 'azureFirewalls') {
-                $FW = $AttachedTo.Split('/')[8]
-                $AttachedToType = 'FW'
-                $AttachedToName = $FW
-            }
-            else{
-                $AttachedToType = 'Unknown'
-                $AttachedToName = 'Unknown'
+                "applicationGateways" {
+                    $AttachedToType = 'AppGateway'
+                    $AttachedToName = $AttachedTo.Split('/')[8]
+                }
+                "loadBalancers" {
+                    $AttachedToType = 'LoadBalancer'
+                    $AttachedToName = $AttachedTo.Split('/')[8]
+                }
+                "virtualNetworkGateways" {
+                    $AttachedToType = 'VNG'
+                    $AttachedToName = $AttachedTo.Split('/')[8]
+                }
+                "azureFirewalls" {
+                    $AttachedToType = 'FW'
+                    $AttachedToName = $AttachedTo.Split('/')[8]
+                }
+
+                Default {
+                    $AttachedToType = 'Unknown'
+                    $AttachedToName = "Unknown"
+                }
             }
         }
         else{
-            $AttachedToType = 'Unknown'
-            $AttachedToName = 'Unknown'
+            $AttachedToType = 'Not attached'
+            $AttachedToName = 'Not attached'
         }
+            
 
         $AllPipsResultSelector = @(
             "Name",
@@ -112,9 +112,9 @@ foreach ($Sub in $Subs){
             "ResourceGroupName",
             "IpAddress",
             "PublicIpAllocationMethod",
-            @{L='Subscription';E={$Sub.name}}
-            @{L='AttachedToObjectType';E={$AttachedToType}}
-            @{L='AttachedToObjectName';E={$AttachedToName}}
+            @{L='Subscription';E={$Sub.name}},
+            @{L='AttachedToObjectType';E={$AttachedToType}},
+            @{L='AttachedToObjectName';E={$AttachedToName}},
             "Id"
         )
 
@@ -123,7 +123,6 @@ foreach ($Sub in $Subs){
 
         $PipsCounter += 1
     }
-
     $SubsCounter += 1
 }
 #Export to excel
