@@ -4,7 +4,7 @@
 param (
     [Parameter(Mandatory = $false)]
     [string]
-    $ReportName = 'AzPipReport.xlsx'
+    $ReportName = "AzPipReport_$($(Get-Date).ToString('yyyy.MM.dd')).xlsx"
 )
 
 <#
@@ -52,8 +52,6 @@ if (!$AzConnection) {
 $Subs = get-azSubscription
 $AzSubscriptionsCount = $Subs | Measure-Object | Select-Object -ExpandProperty Count
 $SubsCounter = 1
-
-$ReportPath = $PSScriptRoot + $ReportName
 
 $AllPipsResult = @()
 $PerSubReport = @()
@@ -151,22 +149,33 @@ foreach ($Sub in $Subs) {
     }
     $SubsCounter += 1
 }
+
 #Export to excel
 $PerSubSplat = @{
-    Path          = $ReportPath
+    Path          = $ReportName
     AutoSize      = $true
     AutoFilter    = $true
     TableStyle    = 'Medium2'
     WorksheetName = 'Summary'
+    InputObject   = $PerSubReport
+    ErrorAction   = 'Stop'
 }
 
 $AllPipsResultSplat = @{
-    Path          = $ReportPath
+    Path          = $ReportName
     AutoSize      = $true
     AutoFilter    = $true
     TableStyle    = 'Medium2'
     WorksheetName = 'PIPList'
+    InputObject   = $AllPipsResult
+    ErrorAction   = 'Stop'
 }
 
-$PerSubReport | Export-Excel @PerSubSplat
-$AllPipsResult | Export-Excel @AllPipsResultSplat
+try{
+    Export-Excel @PerSubSplat
+    Export-Excel @AllPipsResultSplat
+}
+catch {
+    Write-Error "Could not export to excel. Please check if the file is open and try again."
+    exit 1
+}
